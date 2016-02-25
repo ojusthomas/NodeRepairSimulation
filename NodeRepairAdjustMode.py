@@ -1,8 +1,12 @@
+
+
 import math
+import time
 # define the storage node.
 class StorageNode:
 	
 	#Constructor takes maximum number of blocks in  the node, size of the block, nodeid, type of node - DN(DataNode), PN(ParityNode)
+	@profile
 	def __init__(self, max_blocks, block_size, node_id, node_type):
 				self.max_blocks = max_blocks
 				self.block_size = block_size
@@ -18,6 +22,7 @@ class StorageNode:
 				self.node_availability_status = "Free" # Other possible status = "Used"
 			
 	# write to the stripes in the node for the first time
+	@profile
 	def write_to_node_stripe(self, data, block_no):
 		if(self.node_stat == "Live"):
 			if(self.node_availability_status=="Free"):
@@ -118,6 +123,7 @@ class StorageNode:
 						free_block.append(blocks)
 						return free_block
 	#return the list of all free blocks
+	@profile
 	def give_list_free_blocks(self):
 		list_free_blocks = []
 		#print "\n Node Status "+str(self.node_id)+": "+str(self.node_stat)
@@ -147,6 +153,7 @@ class Master:
 	node_fileblk_map = {} # keep track of file blocks in each node
 
 	#constructor
+	@profile
 	def __init__(self, max_nodes, datanodes, paritynodes, buffernodes): # max_nodes = datanodes+paritynodes, buffernodes are for failure handling.
 		self.max_nodes  = max_nodes
 		self.datanodes = datanodes
@@ -158,7 +165,7 @@ class Master:
 		for nodes in range(self.datanodes):
 			#print "**@@ Nodes :"+str(nodes)+" datanodes = "+str(datanodes)+" datanodes+paritynodes = "+str(datanodes+paritynodes)
 			#if (nodes < datanodes):
-			self.storage_node.append(StorageNode(30, 10, "DN"+str(nodes),"DataNode"))# creating data nodes
+			self.storage_node.append(StorageNode(50, 10, "DN"+str(nodes),"DataNode"))# creating data nodes
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
 			self.tbl_node_allocation[self.storage_node[nodes].node_id] = [] # intializing allocation table Tbl4
 			lists = [self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, "Live"]
@@ -171,7 +178,7 @@ class Master:
         	#if((nodes >= datanodes) or (nodes < datanodes+paritynodes)):  
 		for nodes in range(datanodes,datanodes+paritynodes):
 			#print"&&&&&&"
-			self.storage_node.append(StorageNode(30, 10, "PN"+str((datanodes+paritynodes-1)-nodes),"ParityNode"))
+			self.storage_node.append(StorageNode(50, 10, "PN"+str((datanodes+paritynodes-1)-nodes),"ParityNode"))
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
 			self.tbl_node_allocation[self.storage_node[nodes].node_id] = []
 			lists = [self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, "Live"]
@@ -182,7 +189,7 @@ class Master:
 			self.node_fileblk_map[self.storage_node[nodes].node_id] = []
 		for nodes in range(datanodes+paritynodes,datanodes+paritynodes+buffernodes):
 			#print"&&&&&&"
-			self.storage_node.append(StorageNode(30, 10, "BN"+str((datanodes+paritynodes+buffernodes-1)-nodes),"BufferNode"))
+			self.storage_node.append(StorageNode(50, 10, "BN"+str((datanodes+paritynodes+buffernodes-1)-nodes),"BufferNode"))
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
 			self.tbl_node_allocation[self.storage_node[nodes].node_id] = []
 			lists = [self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, "Live"]
@@ -192,19 +199,25 @@ class Master:
 			self.nodeid_nodenumber_map[self.storage_node[nodes].node_id] = nodes
 			self.node_fileblk_map[self.storage_node[nodes].node_id] = []
 	# node registration with master
+	@profile
 	def write_file(self, file_name, file_data=[]):  
 		blk_list = []
 		list_blk_list = []
 		data_count = 0
 		status = "No Duplicates"
+		print "\n writing " + file_name
 		if(self.add_to_file_list(file_name) == "Duplicate"):
 			status = "Duplicate File Exist"
 		else:
 			self.tbl_file_blocks_list = self.split_file(file_name)
 			#print "LLL"+ str(self.tbl_file_blocks_list)
 			self.tbl_file_blocks_map[file_name] = self.tbl_file_blocks_list # append the file blocks list (Tbl1)
-			#print "$$$$"
-			#print self.tbl_file_blocks_map[file_name]
+			print "$$$$"
+			print self.storage_node[0].give_list_free_blocks()
+			if not (self.storage_node[0].give_list_free_blocks()):
+				print "\n Nodes full,					 go for scaling \n"
+				status = "Scaling Required"
+				return status 
 			for nodes in range(self.max_nodes): # trying to write the data to the node blocks.
 				#for blocks in range(storage_node[nodes].max_nodes)
 					#print nodes
@@ -223,6 +236,8 @@ class Master:
 					#print "list_blk_list"+str(list_blk_list)
 					data_count += 1
 			self.tbl_file_stripe_map[file_name] = list_blk_list
+			del blk_list
+			del list_blk_list
 		return status
 
 	# display all blocks of all nodes
@@ -242,6 +257,7 @@ class Master:
 		return file_blks
 	
 	# check for duplicate files and add to file list
+	@profile
 	def add_to_file_list(self, file_name):
 		status = ""
 		if(self.file_list== []):
@@ -514,19 +530,9 @@ class Master:
 				#print "\n self.node_fileblk_map[node_id] : "+str(self.node_fileblk_map[node_id])
 				if(reqd_no_blks == 0):
 					break	
-					
-
-
-
-				
-
 	# copy data in adjust mode
 	#def copy_data_adjust_mode(self,src_node_id,destn_node_id,reqd_no_blks):
-
-
-
-
-
+start_time = time.time()
 ma = Master(14, 10, 4, 4)
 #print "\n#######\n"
 #ma.write_file_blocks_list("A",['A1','A2','PA1','PA2'])
@@ -534,22 +540,31 @@ ma = Master(14, 10, 4, 4)
 #ma.make_node_fail(1)
 #ma.write_file_blocks_list("B",['B1','B2','PB1','PB2'])
 ma.display_tables()
-ma.write_file("A",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+if __name__ == '__main__':	
+	ma.write_file("A",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
-ma.write_file("B",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+if __name__ == '__main__':	
+	ma.write_file("B",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
-ma.write_file("C",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-#ma.display_tables()
-#ma.display_nodes()
-ma.write_file("D",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-#ma.display_tables()
-#ma.display_nodes()
-ma.write_file("E",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+if __name__ == '__main__':	
+	ma.write_file("C",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
-'''ma.write_file("E",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-ma.display_tables()
-ma.display_nodes()'''
+print("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == '__main__':	
+	ma.write_file("D",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+#ma.display_tables()
+#ma.display_nodes()
+if __name__ == '__main__':	
+	ma.write_file("E",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+#ma.display_tables()
+#ma.display_nodes()
+print("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == '__main__':	
+	ma.write_file("E",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+#ma.display_tables()
+#ma.display_nodes()
+print("--- %s seconds ---" % (time.time() - start_time))
 ma.write_file("F",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
@@ -574,13 +589,15 @@ ma.write_file("L",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 ma.write_file("M",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
-ma.write_file("N",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+print("--- %s seconds ---" % (time.time() - start_time))
+if __name__ == '__main__':	
+	ma.write_file("N",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
-ma.write_file("O",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+	ma.write_file("O",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
-ma.write_file("P",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+	ma.write_file("P",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
 ma.write_file("Q",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
@@ -604,28 +621,44 @@ ma.write_file("V",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 ma.write_file("W",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
+print("--- %s seconds ---" % (time.time() - start_time))
 ma.write_file("X",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
 #ma.display_tables()
 #ma.display_nodes()
 ma.write_file("Y",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-#ma.display_tables()
-#ma.display_nodes()
 ma.write_file("Z",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-#ma.display_tables()
-#ma.display_nodes()
-'''ma.make_node_fail(1)
-ma.display_tables()
-ma.display_nodes()'''
-ma.write_file("W",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36]) 
-#ma.display_tables()
-#ma.display_nodes()
-ma.write_file("X",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-#ma.display_tables()
-#ma.display_nodes()
+ma.write_file("A1",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+'''ma.write_file("A2",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A3",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A4",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+print("--- %s seconds ---" % (time.time() - start_time))
+ma.write_file("A5",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A6",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A7",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A8",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A9",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A10",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+print("--- %s seconds ---" % (time.time() - start_time))
+ma.write_file("A11",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A12",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A13",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A14",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A15",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A16",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+print("--- %s seconds ---" % (time.time() - start_time))
 ma.write_file("Y",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("Z",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A1",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A2",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A3",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+ma.write_file("A4",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+print("--- %s seconds ---" % (time.time() - start_time))
+
+#ma.write_file("A5",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+#ma.write_file("A6",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])																													
 #ma.display_tables()
 #ma.display_nodes()
-ma.write_file("Z",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+
 ma.display_tables()
 ma.display_nodes()
 ma.make_node_fail(2)
@@ -634,7 +667,7 @@ ma.display_nodes()
 ma.make_node_fail(3)
 ma.display_tables()
 ma.display_nodes()
-ma.make_node_fail(4)
+ma.make_node_fail(4)'''
 ma.display_tables()
 ma.display_nodes()
 print "recovery rule : "+str(ma.give_recovery_rule())
