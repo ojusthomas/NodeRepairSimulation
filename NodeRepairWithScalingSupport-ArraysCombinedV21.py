@@ -5,7 +5,7 @@
 # version 2.1 adding insert , delete files and make  node fail, live
 # Version 2.2 single node scaling required in case of a single node failure. Furthur writes are permitted only when buffer nodes are present through single node scaling.  
 # Recovery by Adjustment works only when no buffer nodes are there and when no reads and writes are there.
-
+# from branch3 
 import math
 import time
 #from guppy import hpy
@@ -28,7 +28,7 @@ class StorageNode:
 					self.block_stat.append("Free")
 				self.block_count = 0
 				self.node_stat = "Live"
-				self.node_type = node_type
+				self.node_type = node_type  
 				self.node_id = node_id
 				self.node_availability_status = "Free" # Other possible status = "Used"
 			
@@ -188,7 +188,7 @@ class Master:
 		for nodes in range(self.datanodes):
 			#print "**@@ Nodes :"+str(nodes)+" datanodes = "+str(datanodes)+" datanodes+paritynodes = "+str(datanodes+paritynodes)
 			#if (nodes < datanodes):
-			self.storage_node.append(StorageNode(10, 100, "DN-"+str(nodes),"DataNode"))# creating data nodes
+			self.storage_node.append(StorageNode(5, 100, "DN-"+str(nodes),"DataNode"))# creating data nodes
 			node_id = self.storage_node[nodes].node_id
 			#print "**** Node number of : "+str(node_id) +" "+str(self.give_node_number(node_id))
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
@@ -207,7 +207,7 @@ class Master:
 		for nodes in range(datanodes,datanodes+paritynodes):
 			#print"&&&&&&"
 			#self.storage_node.append(StorageNode(10, 100, "PN"+str((datanodes+paritynodes-1)-nodes),"ParityNode"))
-			self.storage_node.append(StorageNode(10, 100, "PN-"+str(nodes),"ParityNode"))
+			self.storage_node.append(StorageNode(5, 100, "PN-"+str(nodes),"ParityNode"))
 			node_id = self.storage_node[nodes].node_id
 			#print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
 			self.tbl_node_allocation[node_id] = []
@@ -220,7 +220,7 @@ class Master:
 			#self.node_fileblk_map[self.storage_node[nodes].node_id] = []
 		for nodes in range(datanodes+paritynodes,datanodes+paritynodes+buffernodes):
 			#print"&&&&&&"
-			self.storage_node.append(StorageNode(10, 100, "BN-"+str((datanodes+paritynodes+buffernodes-1)-nodes),"BufferNode"))
+			self.storage_node.append(StorageNode(5, 100, "BN-"+str((datanodes+paritynodes+buffernodes-1)-nodes),"BufferNode"))
 			node_id = self.storage_node[nodes].node_id
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
 			self.tbl_node_allocation[node_id] = []
@@ -234,6 +234,11 @@ class Master:
 	# node registration with master
 
 	# Scaling - Full type where another (n,k) storage will be created, if single type then one node will be created.
+	#step 1 : set scale flag = false if true
+	#step 2 : if scale type == full then 
+	#step 3 : 	create new cluster with all meta data tables initialised.
+	#step 4 : else if scale type == single then 
+	#step 5	:	create new node with all meta data tables initialised.
 	#@profile
 	def scale(self,type,node_count = 1) :
 		print "Scaling :"+ str(type)
@@ -245,8 +250,9 @@ class Master:
 			start_node = (self.scaled-1) * self.max_nodes + self.buffernodes
 			end_node =  start_node + self.datanodes
 			print " **** scale : start_node "+ str(start_node)+ " end_node : "+str(end_node)
+			raw_input("Please press any button... ")
 			for nodes in range(start_node, end_node):
-				self.storage_node.append(StorageNode(10, 100, "DN-"+str(nodes),"DataNode"))# creating data nodes
+				self.storage_node.append(StorageNode(5, 100, "DN-"+str(nodes),"DataNode"))# creating data nodes
 				node_id = self.storage_node[nodes].node_id
 				self.tbl_node_allocation[node_id] = [] # intializing allocation table Tbl4
 				#print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
@@ -260,7 +266,7 @@ class Master:
 			end_node = start_node + self.paritynodes
 			print " $$$$ start_node "+ str(start_node)+ " end_node : "+str(end_node)
 			for nodes in range(start_node ,end_node):
-				self.storage_node.append(StorageNode(10, 100, "PN-"+str(nodes),"ParityNode"))
+				self.storage_node.append(StorageNode(5, 100, "PN-"+str(nodes),"ParityNode"))
 				node_id = self.storage_node[nodes].node_id
 				#print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
 				self.tbl_node_allocation[node_id] = []
@@ -274,7 +280,7 @@ class Master:
 			end_node = start_node + self.buffernodes
 			print " $$$$ start_node "+ str(start_node)+ " end_node : "+str(end_node)
 			for nodes in range(start_node,end_node):
-				self.storage_node.append(StorageNode(10, 100, "BN-"+str(nodes),"BufferNode"))
+				self.storage_node.append(StorageNode(5, 100, "BN-"+str(nodes),"BufferNode"))
 				node_id = self.storage_node[nodes].node_id
 				#print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
 				self.tbl_node_allocation[node_id] = [] 
@@ -299,6 +305,11 @@ class Master:
 			self.list_free_nodes[node_id].append(self.storage_node[nodes].node_availability_status)
 
 	# write file to node
+	#step 1 : for each node in the current cluster
+	#step 2 : 	if the number of live nodes in the cluster != required number of nodes then do not write
+	#step 3 :  	else if the number of free blocks in the nodes of the cluster is NULL go for scaling.
+	#step 4 :	write data on nodes.
+
 	#@profile
 	def write_file(self, file_name, file_data=[]):  
 		blk_list = []
@@ -363,13 +374,15 @@ class Master:
 					#print "\nwrite_node_id : "+str(write_node_id)
 					#print "##### self.tbl_node_allocation[write_node_id][1] : \n" + str(self.tbl_node_allocation[write_node_id][2]) 
 					if(self.storage_node[nodes].write_to_node_stripe(file_data[data_count],blk_list[1]) == "Done"):# writing data to node block (Inside if )
-						print "~~~##### self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id]) 
+						print "~~~##### self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id][1]) 
 						self.tbl_node_allocation[write_node_id][1] = self.tbl_node_allocation[write_node_id][1] - self.storage_node[nodes].block_size # updating allocation table Tbl4
+						print "~~~#####))[] self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id][1]) 
 						if(self.tbl_node_allocation[write_node_id][1] == 0):
-							print "Scale flag True"
+							print "Scale flag True***"
 							self.scale_flag = True
 							self.force_scale_node = write_node_id
 							self.scale("Full")
+							break
 						#print "##### self.tbl_node_allocation[write_node_id][1] : \n" + str(self.tbl_node_allocation[write_node_id][1])
 						#print "*self.storage_node[nodes].node_id-- > "+ self.storage_node[nodes].node_id
 						#print "*@@@@self.tbl_file_blocks_map[file_name][nodes]-- > "+ self.tbl_file_blocks_map[file_name][data_count] # nodes- temp to get count from zero
@@ -593,9 +606,7 @@ class Master:
 			else:
 				print "Recovery Failed"
 
-	#self.storage_node.append(StorageNode(5, 10, "DN"+str(nodes),"DN"))
-	#self.tbl_node_allocation[self.storage_node[nodes].node_id] = [self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size, self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size]
-	
+		
 	#find next free node
 	def use_free_node(self):
 		 freenode = next(self.list_free_nodes.iterkeys())
@@ -779,6 +790,8 @@ class Master:
 
 	# copy data in adjust mode
 	#def copy_data_adjust_mode(self,src_node_id,destn_node_id,reqd_no_blks):
+
+failed_nodes = []
 start_time = time.time()
 print "Start time : "+str(start_time)
 #h = hpy()
@@ -790,25 +803,30 @@ ma = Master(14, 10, 4, 0)
 #ma.make_node_fail(1)
 #ma.write_file_blocks_list("B",['B1','B2','PB1','PB2'])
 #ma.display_tables()
-#for count in range (10):
-#	filename = "A"+str(count)
-	#raw_input("Pleas wait ...")	
-#	ma.write_file(filename,[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
-#	if(count% == 0):
-		#ma.make_node_fail(count/100)
-#exit = "True"	
-for count in range (11):
-	filename = "B"+str(count)
-	raw_input("Please wait ...")	
+count = 0
+'''for count in range (100):
+	filename = "A"+str(count)
+	raw_input("@@@@@ Pleas wait ...")	
 	ma.write_file(filename,[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
+	#if(count% == 0):
+		#ma.make_node_fail(count/100)'''
+exit = "T"	
+#count = 0
+while((exit=="T") or (exit == "t")):
+	filename = "B"+str(count)
+	count +=1
+	raw_input("Please wait ...")	
+	ma.write_file(filename,[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])  
 	ma.display_tables()
 	ma.display_nodes()
 	answer = raw_input("\nFail a node ?...Y/N")
 	if answer == "Y":
 		node_to_fail = raw_input("Enter Node number to fail : ")
 		if(ma.make_node_fail(int(node_to_fail),"No")== "Already Failed"):
-			print "\n Can not faile an already failed node"
-	exit = raw_input("DO you want to continue : ")
+			print "\n Can not fail an already failed node"
+	exit = raw_input("DO you want to continue (T or F: ")
+	if(exit=="F" or exit=="f"):
+		break;
 	#print "&&& "+str(count%1000)
 	#if(count%1000 == 0):
 	#	print "Failed\n"
