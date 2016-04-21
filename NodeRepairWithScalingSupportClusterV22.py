@@ -39,14 +39,15 @@ class StorageNode:
 	# write to the stripes in the node for the first time
 	#@profile
 	def write_to_node_stripe(self, data, block_no):
-		print "inside write_to_node_stripe --- > "+ self.node_stat
-		print "inside write_to_node_stripe --- > "+ str(data)
+		#print "Writing to Node_id : "+self.node_id
+		#print "inside write_to_node_stripe --- > "+ self.node_stat
+		#print "inside write_to_node_stripe --- > "+ str(data)
 		if(self.node_stat == "Live"):
 			if(self.node_availability_status=="Free"):
 				self.node_availability_status = "Used"
-			print "self.block_stat["+str(block_no)+"] "+str(self.block_stat[block_no]) 
+			#print "self.block_stat["+str(block_no)+"] "+str(self.block_stat[block_no]) 
 			#if(self.block_stat[block_no] == "Free"):
-			print "@@@ self.block_count = " + str(self.block_count) 
+			#print "@@@ self.block_count = " + str(self.block_count) 
 			self.block_data[block_no] = data
 			self.block_stat[block_no] = "Allocated"
 			self.block_count = self.block_count + 1
@@ -55,15 +56,18 @@ class StorageNode:
 			#	print "Block already in use"
 			#	return "NotDone"
 		else:
-			print "\nCannot write Node Failed\n"
+			#print "\nCannot write Node Failed\n"
 			return "Failed"
 	
 	# update the stripes of the node
 	def update_node_stripe(self,data,block_no):
-		print "\n update_node_stripe My Id : "+str(self.node_id)
+		#print "\n update_node_stripe My Id : "+str(self.node_id)
 		if(self.node_stat == "Live"):
 			self.block_data[block_no] = data
-			self.block_stat[block_no] = "Allocated"
+			if(data == -1):
+				self.block_stat[block_no] = "Free" # delete operation
+			else:
+				self.block_stat[block_no] = "Allocated"
 			#self.block_count += self.block_count
 			return "Done"
 		else:
@@ -74,7 +78,7 @@ class StorageNode:
 	#Read from a block in the node 	
 	def read_from_node(self,block_no):
 		if(self.node_stat == "Live"):
-			return block_data[self.block_no]
+			return self.block_data[block_no]
 		else:
 			print "\nCannot write Node Failed\n"
 	
@@ -128,7 +132,7 @@ class StorageNode:
 	
 	# return the details all blocks in the node
 	def list_all_blocks(self):
-		print "self.node_stat = "+str(self.node_stat)
+		#print "self.node_stat = "+str(self.node_stat)
 		if(self.node_stat == "Live"):
 			for blocks in range(self.max_blocks):
 				if(self.block_stat[blocks] == "Free"):
@@ -169,13 +173,15 @@ class StorageNode:
 class Cluster:
 	#constructor
 	#@profile
-	def __init__(self, max_nodes, datanodes, paritynodes, buffernodes,cluster_no): # max_nodes = datanodes+paritynodes, buffernodes are for failure handling.
+	def __init__(self, max_nodes, datanodes, paritynodes, buffernodes,max_blocks, block_size, cluster_no): # max_nodes = datanodes+paritynodes, buffernodes are for failure handling.
 		self.storage_node = [] # list of storage nodes
 		self.max_nodes  = max_nodes # maximum number of nodes in a cluster data + parity
 		self.datanodes = datanodes # number of data nodes
 		self.paritynodes = paritynodes # number of parity nodes
 		self.buffernodes = buffernodes
 		self.totalnodes = datanodes+paritynodes+buffernodes
+		self.max_blocks = max_blocks
+		self.block_size = block_size
 		self.list_free_nodes = {} # list of free nodes i.e having the node_availability_status = "Free"
 		lists = []
 		self.tbl_file_blocks_map = {} #Tbl1 file to file blocks map eg : A, [A1, A2, PA1, PA2]
@@ -192,7 +198,7 @@ class Cluster:
 		for nodes in range(self.datanodes):
 			#print "**@@ Nodes :"+str(nodes)+" datanodes = "+str(datanodes)+" datanodes+paritynodes = "+str(datanodes+paritynodes)
 			#if (nodes < datanodes):
-			self.storage_node.append(StorageNode(5, 100,"CL"+str(cluster_no)+"DN-"+str(nodes),"DataNode"))# creating data nodes
+			self.storage_node.append(StorageNode(self.max_blocks,self.block_size,"CL"+str(cluster_no)+"DN-"+str(nodes),"DataNode"))# creating data nodes
 			node_id = self.storage_node[nodes].node_id
 			#print "**** Node number of : "+str(node_id) +" "+str(self.give_node_number(node_id))
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
@@ -211,7 +217,7 @@ class Cluster:
 		for nodes in range(datanodes,datanodes+paritynodes):
 			#print"&&&&&&"
 			#self.storage_node.append(StorageNode(10, 100, "PN"+str((datanodes+paritynodes-1)-nodes),"ParityNode"))
-			self.storage_node.append(StorageNode(5, 100, "CL"+str(cluster_no)+"PN-"+str(nodes),"ParityNode"))
+			self.storage_node.append(StorageNode(self.max_blocks,self.block_size, "CL"+str(cluster_no)+"PN-"+str(nodes),"ParityNode"))
 			node_id = self.storage_node[nodes].node_id
 			#print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
 			self.tbl_node_allocation[node_id] = []
@@ -224,7 +230,7 @@ class Cluster:
 			#self.node_fileblk_map[self.storage_node[nodes].node_id] = []
 		for nodes in range(datanodes+paritynodes,datanodes+paritynodes+buffernodes):
 			#print"&&&&&&"
-			self.storage_node.append(StorageNode(5, 100, "CL"+str(cluster_no)+"BN-"+str((datanodes+paritynodes+buffernodes-1)-nodes),"BufferNode"))
+			self.storage_node.append(StorageNode(self.max_blocks,self.block_size, "CL"+str(cluster_no)+"BN-"+str((datanodes+paritynodes+buffernodes-1)-nodes),"BufferNode"))
 			node_id = self.storage_node[nodes].node_id
 			#print "*Nodes :"+str(nodes)+" node_id " + str(self.storage_node[nodes].node_id)
 			self.tbl_node_allocation[node_id] = []
@@ -235,15 +241,16 @@ class Cluster:
 			self.list_free_nodes[node_id].append(self.storage_node[nodes].node_availability_status)
 	#		
 	def single_scale(self,cluster_no,nodes):
-		self.storage_node.append(StorageNode(5, 100,"CL"+str(cluster_no)+"BN-"+str(nodes),"BufferNode"))
-		node_id = self.storage_node[nodes].node_id
-		print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
+		self.storage_node.append(StorageNode(self.max_blocks,self.block_size,"CL"+str(cluster_no)+"BN-"+str(nodes),"BufferNode"))
+		node_id = "CL"+str(cluster_no)+"BN-"+str(nodes)
+		#print "*Nodes :"+str(nodes)+" node_id " + str(node_id)
 		self.tbl_node_allocation[node_id] = [] 
 		allocation = self.storage_node[nodes].max_blocks*self.storage_node[nodes].block_size
 		self.tbl_node_allocation[node_id] = [allocation, allocation, "Live",[]]
-		print self.tbl_node_allocation
+		#print self.tbl_node_allocation
 		self.list_free_nodes[node_id] = []
-		self.list_free_nodes[node_id].append(self.storage_node[nodes].node_availability_status)
+		self.list_free_nodes[node_id].append("Free")
+		#print "sing scal list of free nodes : "+str(self.list_free_nodes)
 		return self.list_free_nodes
 
 	# return the tbl_file_blocks_map
@@ -270,10 +277,10 @@ class Cluster:
 	#set tbl_node_allocation
 	def set_tbl_node_allocation(self,tbl_node_allocation):
 		self.tbl_node_allocation = tbl_node_allocation
-		print"self.tbl_node_allocation --> "+str(self.tbl_node_allocation)
+		#print"self.tbl_node_allocation --> "+str(self.tbl_node_allocation)
 	#return list of freenodes
-	def get_list_free_nodes():
-		return list_free_nodes
+	def get_list_free_nodes(self):
+		return self.list_free_nodes
 	#set the list_free_nodes
 	def set_list_free_nodes(self,list_free_nodes):
 		self.list_free_nodes = list_free_nodes
@@ -284,7 +291,7 @@ class Cluster:
 # defining the master
 class Master:
 	
-	def __init__(self, max_nodes, datanodes, paritynodes, buffernodes): # max_nodes = datanodes+paritynodes, buffernodes are for failure handling.
+	def __init__(self, max_nodes, datanodes, paritynodes, buffernodes, max_blocks, block_size): # max_nodes = datanodes+paritynodes, buffernodes are for failure handling.
 		self.tbl_file_blocks_map = {} #Tbl1 file to file blocks map eg : A, [A1, A2, PA1, PA2]
 		self.tbl_fileblk_nodeblk_map = {} # Tbl2 File block to node block map eg : {A1, [DN0,1],A2, [DN1,1], PA0,[PN0,1], PA1,[PN1,1]}
 		self.tbl_file_stripe_map = {} # Tbl3 File, stripe map eg : A ,[[DN1,1],[DN2,1], [PN3,1], [PN4,1]]
@@ -293,7 +300,8 @@ class Master:
 		self.tbl_file_stripe_list = [] # hold the file stripe list eg. [[DN1,1],[DN2,1], [PN3,1], [PN4,1]]
 		self.tbl_allocation_list = [] # [50,20]
 		self.tbl_cluster_file_info = {} # Tbl storing which file is in which cluster {clust1,[A,B,C], clust2,[D,E,F],....}
-		
+		self.max_blocks = max_blocks
+		self.block_size = block_size
 		self.file_list = [] # list of files stored
 		self.replacement_list = {} #list of nodes with replacement node for each in case of failure. eg. ['DN1','BN1'] BN1-BufferNode1 is the replacement for DN1
 		self.recovery_rule = "Adjust" # "Replace" - replace with a new node, "Adjust" - adjust with existing nodes
@@ -311,7 +319,7 @@ class Master:
 		self.buffernodes = buffernodes
 		self.buffernodes_used = 0
 		if(self.active_cluster == -1):
-			self.clusters.append(Cluster(self.max_nodes,self.datanodes,self.paritynodes, self.buffernodes, self.active_cluster + 1))
+			self.clusters.append(Cluster(self.max_nodes,self.datanodes,self.paritynodes, self.buffernodes, self.max_blocks, self.block_size, self.active_cluster + 1))
 			self.active_cluster += 1
 			self.cluster_count = self.cluster_count + 1
 			print "New Cluster created"
@@ -330,14 +338,14 @@ class Master:
 		if(type == "Full"):
 			self.scaled += 1
 			print "Full Scaling : "+str(self.scaled)
-			self.clusters.append(Cluster(self.max_nodes,self.datanodes,self.paritynodes, self.buffernodes, self.active_cluster + 1))
+			self.clusters.append(Cluster(self.max_nodes,self.datanodes,self.paritynodes, self.buffernodes, self.max_blocks, self.block_size, self.active_cluster + 1))
 			self.active_cluster += 1
 			self.cluster_count = self.cluster_count + 1
 			print "New Cluster created"
 			
 		elif(type == "Single"): # single node scaling
 			print "Single Scaling : "+str(self.scaled)
-			self.list_free_nodes = self.clusters[self.active_cluster].single_scale(self.active_cluster,self.buffernodes)
+			self.list_free_nodes = self.clusters[self.active_cluster].single_scale(self.active_cluster,self.max_nodes+self.buffernodes)
 			self.buffernodes += 1 # increment the number of buffer nodes by one
 			self.tbl_node_allocation = self.clusters[self.active_cluster].get_tbl_node_allocation()
 			#nodes = (self.scaled) * self.max_nodes + self.buffernodes -1
@@ -359,12 +367,12 @@ class Master:
 		list_blk_list = []
 		data_count = 0
 		status = "No Duplicates"
-		print "\n Active cluster : - "+str(self.active_cluster)
+		#print "\n Active cluster : - "+str(self.active_cluster)
 		no_of_nodes = len(self.clusters[self.active_cluster].storage_node)
-		print "\n @@@@@ no_of_nodes " + str(no_of_nodes)
+		#print "\n @@@@@ no_of_nodes " + str(no_of_nodes)
 		live_node_count = 0
 		active_cluster_id = self.get_active_cluster_id(self.active_cluster)
-		print "self.cluster -> "+str(self.get_active_cluster_id(self.active_cluster))
+		#print "self.cluster -> "+str(self.get_active_cluster_id(self.active_cluster))
 		for nodes in range(no_of_nodes): # taking count of live nodes
 			if(self.clusters[self.active_cluster].storage_node[nodes].node_stat == "Live"):
 				live_node_count += 1
@@ -389,30 +397,31 @@ class Master:
 			if(active_cluster_id not in self.tbl_cluster_file_info):
 				self.tbl_cluster_file_info[active_cluster_id] = []
 			self.tbl_cluster_file_info[active_cluster_id].append(filename)
-			print "self.tbl_cluster_file_info :- "+ str(self.tbl_cluster_file_info)
+			#print "self.tbl_cluster_file_info :- "+ str(self.tbl_cluster_file_info)
 			self.tbl_file_blocks_list = self.split_file(file_name)
 			#print "LLL"+ str(self.tbl_file_blocks_list)
 			self.tbl_file_blocks_map[file_name] = self.split_file(file_name) # append the file blocks list (Tbl1)
 			#print "### self.tbl_file_blocks_map[file_name] = "+ str(self.tbl_file_blocks_map[file_name])
 			#print self.storage_node[0].give_list_free_blocks()
-			print "self.scaled : "+ str(self.scaled)
+			#print "self.scaled : "+ str(self.scaled)
 			#if(self.scaled == 1): # checks how many scaling has happened 0 - no scaling, 1 - one scaling , ...
 			start_node = 0   # assign start node
 			end_node = self.max_nodes + self. buffernodes # end node
 			#elif(self.scaled > 1): # scaling has happened 
 			#	start_node = (self.scaled-1) * self.max_nodes+self.buffernodes
 			#	end_node = start_node + self.max_nodes
-			print "self scale : "+str(self.scaled) +" start : "+str(start_node)+" end_node : "+str(end_node)
+			#print "self scale : "+str(self.scaled) +" start : "+str(start_node)+" end_node : "+str(end_node)
 			
 			self.tbl_node_allocation = self.clusters[self.active_cluster].get_tbl_node_allocation()
 			self.tbl_fileblk_nodeblk_map = self.clusters[self.active_cluster].get_tbl_fileblk_nodeblk_map()
-
-			print "sel.tbl_node_allocation " +str(self.tbl_node_allocation)
+			self.list_free_nodes = self.clusters[self.active_cluster].get_list_free_nodes()
+			#print "sel.tbl_node_allocation " +str(self.tbl_node_allocation)
+			#print "free_node : "+str(self.list_free_nodes)
 			for nodes in range(start_node,end_node): # trying to write the data to the node blocks.
 				#for blocks in range(storage_node[nodes].max_nodes)
-					print "Nodes : "+ str(nodes)
+					#print "Nodes : "+ str(nodes)
 					write_node_id = self.clusters[self.active_cluster].storage_node[nodes].node_id
-					print "write_node_id "+ write_node_id
+					#print "write_node_id "+ write_node_id
 					if(self.clusters[self.active_cluster].storage_node[nodes].node_stat == "Failed"): # added to check if the node is a failed node and skip that node
 						print "\n Node Failed, proceeed to Next"
 						continue
@@ -420,19 +429,22 @@ class Master:
 						print "Node is buffer node , proceed to next"
 						continue
 					if(self.clusters[self.active_cluster].storage_node[nodes].node_availability_status == "Free"): # rChanging the availability status of the node from Free to Used on first use
-						self.clusters[self.active_cluster].storage_node[nodes].node_availability_status == "Used"
+					#	print write_node_id +" node_availability_status : "+str(self.clusters[self.active_cluster].storage_node[nodes].node_availability_status)	
+						self.clusters[self.active_cluster].storage_node[nodes].node_availability_status = "Used"
+					#	print write_node_id +" node_availability_status : "+str(self.clusters[self.active_cluster].storage_node[nodes].node_availability_status)
 						if(write_node_id in self.list_free_nodes): # check for conditions of new buffer nodes
 							del(self.list_free_nodes[write_node_id])
+					#print write_node_id +" node_availability_status : "+str(self.clusters[self.active_cluster].storage_node[nodes].node_availability_status)
 					blk_list = self.clusters[self.active_cluster].storage_node[nodes].give_next_free_block()
-					print "blk_list "+str(blk_list)
+					#print "blk_list "+str(blk_list)
 					#print "***** "+self.storage_node[nodes].node_stat
 					#print "***** xxxx "+self.storage_node[nodes].write_to_node_stripe(file_data[data_count],blk_list[1])
 					#print "\nwrite_node_id : "+str(write_node_id)
 					#print "##### self.tbl_node_allocation[write_node_id][1] : \n" + str(self.tbl_node_allocation[write_node_id][2]) 
 					if(self.clusters[self.active_cluster].storage_node[nodes].write_to_node_stripe(file_data[data_count],blk_list[1]) == "Done"):# writing data to node block (Inside if )
-						print "~~~##### self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id][1]) 
+					#	print "~~~##### self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id][1]) 
 						self.tbl_node_allocation[write_node_id][1] = self.tbl_node_allocation[write_node_id][1] - self.clusters[self.active_cluster].storage_node[nodes].block_size # updating allocation table Tbl4
-						print "~~~#####))[] self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id][1]) + "maxnode : "+str(self.max_nodes-1) 
+					#	print "~~~#####))[] self.tbl_node_allocation["+write_node_id+"][1] : \n" + str(self.tbl_node_allocation[write_node_id][1]) + "maxnode : "+str(self.max_nodes-1) 
 						'''if((self.tbl_node_allocation[write_node_id][1] == 0)and(nodes == self.max_nodes-1)):
 							print "Scale flag True***"
 							self.scale_flag = True
@@ -444,7 +456,7 @@ class Master:
 						#print "*@@@@self.tbl_file_blocks_map[file_name][nodes]-- > "+ self.tbl_file_blocks_map[file_name][data_count] # nodes- temp to get count from zero
 						#self.node_fileblk_map[write_node_id].append(self.tbl_file_blocks_map[file_name][data_count])
 						self.tbl_node_allocation[write_node_id][3].append(self.tbl_file_blocks_map[file_name][data_count]) # added to combine arrays nodeid_nodemap,node_fileblk_map with tbl_node_allocation
-					elif (self.clusters[self.active_cluster].storage_node[nodes].node_availability_status == "Failed"): 
+					elif (self.clusters[self.active_cluster].storage_node[nodes].node_stat == "Failed"): 
 						print "Node Failed"
 						status = "Failed"
 						return status  
@@ -458,6 +470,7 @@ class Master:
 					data_count += 1
 			self.clusters[self.active_cluster].set_tbl_node_allocation(self.tbl_node_allocation)
 			self.clusters[self.active_cluster].set_tbl_fileblk_nodeblk_map(self.tbl_fileblk_nodeblk_map)
+			self.clusters[self.active_cluster].set_list_free_nodes(self.list_free_nodes)
 			#print "list_blk_list -- > "+ str(list_blk_list)
 			#self.tbl_file_stripe_map[file_name] = list_blk_list
 			self.write_stripe_list(file_name,list_blk_list) # adding to file_stripe_map
@@ -481,23 +494,33 @@ class Master:
 			for cluster in range(self.cluster_count):
 				cluster_id = self.clusters[cluster].cluster_id
 				if(filename in self.tbl_cluster_file_info[cluster_id][0]):
-					print filename +" in "+ cluster_id
+			#		print filename +" in "+ cluster_id
 					break
 			filefraglist = self.tbl_file_blocks_map[file_name] # get fragments of the file to be deleted.
-			print "\nfilefraglist :"+str(filefraglist) 
+			#print "\nfilefraglist :"+str(filefraglist) 
+			node = 0
 			#for each of the fragment delete them from the node block and free the node block. Then update the node_allocation tbl.
 			for filefrags in filefraglist: 
 				#print "\n Filefrag : "+ filefrags
-				print "\n self.tbl_fileblk_nodeblk_map :"+ str(self.tbl_fileblk_nodeblk_map[filefrags])
+				#print "\n self.tbl_fileblk_nodeblk_map :"+ str(self.tbl_fileblk_nodeblk_map[filefrags])
+				block = self.tbl_fileblk_nodeblk_map[filefrags][1]
+				#print "\n Block : "+str(block)
+				#print "\n read_from_node(block) :"+str(self.clusters[cluster].storage_node[node].read_from_node(block))
+				#if(filefrags == self.clusters[cluster].storage_node[node].read_from_node(block)):
+				#	print "\n Data in this block"
+				self.clusters[cluster].storage_node[node].update_node_stripe(-1,block)
+				node+=1
+				#else:
+				#	print "\n Data not in this block"
 				if(filefrags in self.tbl_fileblk_nodeblk_map):
 					print "yes I found "
 					free_node = self.tbl_fileblk_nodeblk_map[filefrags][0]
 					free_block = self.tbl_fileblk_nodeblk_map[filefrags][1]
-					print free_node
+					#print free_node
 					if(free_node not in self.tbl_node_allocation):
 						print "No matching block found"
 					else:
-						print " Before updating :  self.tbl_node_allocation[free_block][1] : "+str(self.tbl_node_allocation[free_node][3][0])
+						#print " Before updating :  self.tbl_node_allocation[free_block][1] : "+str(self.tbl_node_allocation[free_node][3][0])
 						self.tbl_node_allocation[free_node][1] += self.clusters[self.active_cluster].storage_node[self.give_node_number(free_node)].block_size
 						if(filefrags in self.tbl_node_allocation[free_node][3]):
 							delcounter = 0
@@ -508,7 +531,7 @@ class Master:
 									break
 								else:
 									delcounter += 1
-						print " After updating :  self.tbl_node_allocation[free_block][1] : "+ str(self.tbl_node_allocation[free_node])
+						#print " After updating :  self.tbl_node_allocation[free_block][1] : "+ str(self.tbl_node_allocation[free_node])
 						#check if the whole of the blocks in the node are free, if then add the node to free node list.
 						if(self.tbl_node_allocation[free_node][1] == self.tbl_node_allocation[free_node][0]): 
 							self.list_free_nodes[free_node] = []
@@ -518,7 +541,7 @@ class Master:
 							self.clusters[cluster].storage_node[free_node_num].node_availability_status  = "Free" # make it free internally node level
 					del self.tbl_fileblk_nodeblk_map[filefrags]
 			# delete the file info from cluster		
-			print "%%%%%%%%% - "+str(self.tbl_cluster_file_info[cluster_id])
+			#print "%%%%%%%%% - "+str(self.tbl_cluster_file_info[cluster_id])
 			self.tbl_cluster_file_info[cluster_id].remove(file_name)
 			#delete the meta data of the file from the tbl_file_blocks_map and tbl_file_stripe_map.
 			if(self.is_cluster_free(cluster) == True):
@@ -541,9 +564,9 @@ class Master:
 		end_node = self.max_nodes+self.buffernodes
 		#for scale in range(0, self.cluster_count): # to handle scaled case
 		#print " \n "+str(scale)+" scale"
-		print " **** start_node "+ str(start_node)+ " end_node : "+str(end_node) #+ " Scale : "+ str(scale)
+		#print " **** start_node "+ str(start_node)+ " end_node : "+str(end_node) #+ " Scale : "+ str(scale)
 		for nodes in range(start_node, end_node):
-			print "\nCluster"+str(self.active_cluster)+" *** Node "+str(self.clusters[self.active_cluster].storage_node[nodes].node_id)+ " "+str(self.clusters[self.active_cluster].storage_node[nodes].node_type)+" "+str(self.clusters[self.active_cluster].storage_node[nodes].node_use_status)#+" nodes : "+ str(nodes)+" ***** \n"
+			#print "\nCluster"+str(self.active_cluster)+" *** Node "+str(self.clusters[self.active_cluster].storage_node[nodes].node_id)+ " "+str(self.clusters[self.active_cluster].storage_node[nodes].node_type)+" "+str(self.clusters[self.active_cluster].storage_node[nodes].node_use_status)#+" nodes : "+ str(nodes)+" ***** \n"
 			self.clusters[self.active_cluster].storage_node[nodes].list_all_blocks()
 			#start_node = end_node
 			#end_node = start_node + (self.max_nodes+self.buffernodes)
@@ -648,15 +671,20 @@ class Master:
 	# make a specific node fail
 	def make_node_fail(self, node, can_scale="Yes"):
 		#if(node >= 0 and node < self.max_nodes):
-		print "### can_scale : "+can_scale
+		#print "!!!!### can_scale : "+can_scale
 		if(can_scale == "Yes"):
 			self.scale("Single") # single node scale to compensate for the failed node. All data of failed node will get regenerated to new node
+			print "\n %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
 		fail_node_id = self.clusters[self.active_cluster].storage_node[node].node_id
+		
 		result = self.clusters[self.active_cluster].storage_node[node].make_node_fail()
-		print "result = "+str(result)
+		#print "result = "+str(result)
 		if(result =="Failed"):
 			self.tbl_node_allocation[fail_node_id][2] = "Failed"
-			print "\n !!! Failed : "+str(fail_node_id)+" : "+str(self.tbl_node_allocation[fail_node_id][2])
+			#print "\n !!! Failed : "+str(fail_node_id)+" : "+str(self.tbl_node_allocation[fail_node_id][2])
+			self.list_free_nodes = self.clusters[self.active_cluster].get_list_free_nodes()
+			#self.list_free_nodes[fail_node_id] = "Free"
+			#self.clusters[self.active_cluster].set_list_free_nodes(self.list_free_nodes)
 			self.start_recovery(fail_node_id)
 			self.tbl_node_allocation[fail_node_id][1] += self.clusters[self.active_cluster].storage_node[node].block_size
 			return result
@@ -691,7 +719,9 @@ class Master:
 		
 	#find next free node
 	def use_free_node(self):
+		 #print "\n self.list_free_nodes :" +str(self.list_free_nodes)
 		 freenode = next(self.list_free_nodes.iterkeys())
+		 #print "freenode : "+freenode
 		 del(self.list_free_nodes[freenode])
 		 self.buffernodes_used += 1
 		 #self.buffernodes -= 1
@@ -709,25 +739,26 @@ class Master:
 		destn_node_num = self.give_node_number(destn_node_id) # below line modified to avoid usage of nodeid_nodenumber_map
 		#destn_node_num = self.nodeid_nodenumber_map[destn_node_id]
 		#print "\n ^^^^^^^^^ In copy_data() ^^^^^^^^^^"
+		#print "destn_node_id) : "+ str(destn_node_id)+" destn_node_num  :" + str(destn_node_num )
 		if(self.clusters[self.active_cluster].storage_node[src_node_num].max_blocks > self.clusters[self.active_cluster].storage_node[destn_node_num].max_blocks):
 			print "copy not possible"
 			status = "NotDone"
 		else:
 			for nodeblocks in range(self.clusters[self.active_cluster].storage_node[src_node_num].max_blocks):
-				print "nodeblocks  --> "+str(nodeblocks)
+				#print "nodeblocks  --> "+str(nodeblocks)
 				if(self.clusters[self.active_cluster].storage_node[src_node_num].block_stat[nodeblocks] == "Free"):
 					break
 				data = self.clusters[self.active_cluster].storage_node[src_node_num].block_data[nodeblocks]
-				print "data in "+str(nodeblocks)+" -- > "+ str(data)
+				#print "data in "+str(nodeblocks)+" -- > "+ str(data)
 				if(self.clusters[self.active_cluster].storage_node[destn_node_num].write_to_node_stripe(data,nodeblocks) == "Done"):# writing data to node block (Inside if )
 						# update allocation table
 						self.tbl_node_allocation[destn_node_id][1] = self.tbl_node_allocation[destn_node_id][1] - self.clusters[self.active_cluster].storage_node[destn_node_num].block_size # updating allocation table Tbl4
 						#fileblk = self.node_fileblk_map[src_node_id][nodeblocks]
 						fileblk = self.tbl_node_allocation[src_node_id][3][0]
-						print "self.tbl_node_allocation[src_node_id][3] : "+str(self.tbl_node_allocation[src_node_id][3])
-						print "\n@@@@fileblk : "+str(fileblk)
+						#print "self.tbl_node_allocation[src_node_id][3] : "+str(self.tbl_node_allocation[src_node_id])
+						#print "\n@@@@fileblk : "+str(fileblk)
 						#del(self.tbl_fileblk_nodeblk_map[self.node_fileblk_map[self.storage_node[src_node_num].node_id][nodeblocks]])
-						print "self.tbl_fileblk_nodeblk_map[fileblk] : "+str(self.tbl_fileblk_nodeblk_map[fileblk])
+						#print "self.tbl_fileblk_nodeblk_map[fileblk] : "+str(self.tbl_fileblk_nodeblk_map[fileblk])
 						#update tbl2 fileblk-nodeblk map
 						self.tbl_fileblk_nodeblk_map[fileblk] = [destn_node_id,nodeblocks]
 						#update node fileblk map
@@ -773,14 +804,14 @@ class Master:
 		for nodes in range(self.max_nodes):
 			node_id = self.clusters[self.active_cluster].storage_node[nodes].node_id
 			if(self.tbl_node_allocation[node_id][2] != "Failed"):
-				print "\n self.tbl_node_allocation[self.clusters[self.active_cluster].storage_node[nodes].node_id] :" + str(self.tbl_node_allocation[node_id])
+				#print "\n self.tbl_node_allocation[self.clusters[self.active_cluster].storage_node[nodes].node_id] :" + str(self.tbl_node_allocation[node_id])
 				if(self.tbl_node_allocation[node_id][1] != 0):
 					node_free_size_map[node_id] = [self.tbl_node_allocation[node_id][1]]
 		return node_free_size_map
 
 	# returns the node number given the node id
 	def give_node_number(self,node_id):
-		print "node_id "+ str(node_id)
+		#print "node_id "+ str(node_id)
 		nodeno = node_id.split('-')
 		return int(nodeno[1])
 
@@ -829,7 +860,7 @@ class Master:
 		temp = 0
 		available_space = 0
 		nxtblk = []
-		print "&&&&&& Node Failed :"+ str(node_id) + " free_block_count :" +str(free_block_count) + " reqd_size : "+str(reqd_size)
+		#print "&&&&&& Node Failed :"+ str(node_id) + " free_block_count :" +str(free_block_count) + " reqd_size : "+str(reqd_size)
 		for space in free_block_count:
 			available_space += free_block_count[space][0]
 		if(reqd_size > available_space):
@@ -843,14 +874,14 @@ class Master:
 				#print "\n free_block_count[nodes][0] "+str(free_block_count[nodes][0])
 				temp_node_id = self.give_node_number(nodes)
 				temp = int(math.floor(free_block_count[nodes][0]/self.clusters[self.active_cluster].storage_node[temp_node_id].block_size))
-				print "\n nodes : "+str(nodes)+" temp : "+ str(temp) + " reqd_no_blks : "+str(reqd_no_blks) + " min(temp, reqd_no_blks) : "+str(min(temp, reqd_no_blks))
+				#print "\n nodes : "+str(nodes)+" temp : "+ str(temp) + " reqd_no_blks : "+str(reqd_no_blks) + " min(temp, reqd_no_blks) : "+str(min(temp, reqd_no_blks))
 				for blk in range(min(temp, reqd_no_blks)):
 					nxtblk = self.clusters[self.active_cluster].storage_node[temp_node_id].give_next_free_block()
 					if(not nxtblk):
 						break
 					data_blk.append(nxtblk[1])
 					data = self.clusters[self.active_cluster].storage_node[nodenumber].block_data[blk]
-					print "\n nxtblk : "+ str(nxtblk) + " data = "+ str(data) +" nxtblk[1] : "+str(nxtblk[1])
+					#print "\n nxtblk : "+ str(nxtblk) + " data = "+ str(data) +" nxtblk[1] : "+str(nxtblk[1])
 					if(self.clusters[self.active_cluster].storage_node[temp_node_id].write_to_node_stripe(data,nxtblk[1]) == "Done"):
 						#print "\n %%%%%%%%%%%%%%%%%Data Copied :" + str(self.storage_node[self.nodeid_nodenumber_map[nodes]].block_data[nxtblk[1]])
 						#print "\n free_block_count[nodes][0] "+str(free_block_count[nodes][0])
@@ -880,8 +911,8 @@ class Master:
 					#self.node_fileblk_map[node_id].remove(fileblk_list[i])
 					#print "############################### self.node_fileblk_map[node_id] : "+ str(self.node_fileblk_map[node_id])
 					#print "fileblk_list["+ str(i)+"]"+str(fileblk_list[i])
-					print "~~~~~~~self.tbl_node_allocation[node_id][3]"+str(self.tbl_node_allocation[node_id][3])
-					print "(((( deleting : "+str(fileblk_list[i])
+					#print "~~~~~~~self.tbl_node_allocation[node_id][3]"+str(self.tbl_node_allocation[node_id][3])
+					#print "(((( deleting : "+str(fileblk_list[i])
 					self.tbl_node_allocation[node_id][3].remove(fileblk_list[i])# added by ojus for array combining
 					self.tbl_node_allocation[nodes][3].append(fileblk_list[i])
 					#self.node_fileblk_map[nodes].append(fileblk_list[i]) #Ojus removed as aprt of combining arrays
@@ -898,7 +929,7 @@ start_time = time.time()
 print "Start time : "+str(start_time)
 #h = hpy()
 print "%%%%%%% = "+str(sys.getsizeof({}))
-ma = Master(6, 4, 2, 0)
+ma = Master(9, 6, 3, 0,100,10)
 #print "\n#######\n"
 #ma.write_file_blocks_list("A",['A1','A2','PA1','PA2'])
 #print "Blocks of A : "+ str(ma.give_file_blocks_list("A"))
@@ -906,7 +937,7 @@ ma = Master(6, 4, 2, 0)
 #ma.write_file_blocks_list("B",['B1','B2','PB1','PB2'])
 #ma.display_tables()
 count = 0
-'''for count in range (10000):
+for count in range (100000):
 	filename = "A"+str(count)
 	#raw_input("@@@@@ Pleas wait ...")	
 	ma.write_file(filename,[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])
@@ -950,15 +981,15 @@ print("--- %s seconds ---" % (time.time() - start_time))
 #ma.write_file("A6",[10,20,21,22,23,24,25,30,10,31,32,33,34,35,36])																													
 #ma.display_tables()
 #ma.display_nodes()'''
-ma.display_tables()
-ma.display_nodes()
+#ma.display_tables()
+#ma.display_nodes()
 '''ma.make_node_fail(2)
 ma.display_tables()
 ma.display_nodes()
 ma.make_node_fail(3)
 ma.display_tables()
 ma.display_nodes()'
-#raw_input("\nPress any key to continue ......")'''
+#raw_input("\nPress any key to continue ......")
 os.system('clear')
 while (True):
 	print "\n *********************************************"
@@ -985,7 +1016,7 @@ while (True):
 	elif my_choice == 4:
 		print "\ngoing to make a node to fail"
 		node_to_fail = int(raw_input("\n Enter node to fail : "))
-		ma.make_node_fail(node_to_fail)
+		ma.make_node_fail(node_to_fail,"No")
 	elif my_choice == 5:
 		print "\n going to make a node live"
 		node_to_live = int(raw_input("\n Enter node to live : "))
@@ -996,7 +1027,7 @@ while (True):
 	ma.display_nodes()
 	raw_input("\nPress any key to continue ......")	
 	os.system('clear')
-#ma.make_node_fail(4)
+#ma.make_node_fail(4)'''
 ma.display_tables()
 ma.display_nodes()
 print "recovery rule : "+str(ma.give_recovery_rule())
